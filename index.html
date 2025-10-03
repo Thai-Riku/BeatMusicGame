@@ -84,6 +84,8 @@
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
             gap: 15px;
             margin-bottom: 20px;
+            max-height: 300px;
+            overflow-y: auto;
         }
 
         .song-item {
@@ -355,6 +357,7 @@
             border-radius: 8px;
             color: white;
             width: 100%;
+            border: none;
         }
 
         .progress-bar {
@@ -442,6 +445,28 @@
             cursor: pointer;
         }
 
+        .youtube-preview {
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .youtube-preview iframe {
+            max-width: 100%;
+            border-radius: 8px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: var(--accent);
+        }
+
+        .error-message {
+            color: var(--danger);
+            margin-top: 10px;
+            text-align: center;
+        }
+
         @media (max-width: 768px) {
             .song-list {
                 grid-template-columns: 1fr;
@@ -492,11 +517,13 @@
                 </div>
                 
                 <div class="custom-song-section">
-                    <h2 class="section-title">Add Your Own Song</h2>
-                    <input type="file" id="songFile" class="file-input" accept="audio/*">
+                    <h2 class="section-title">Add YouTube Song</h2>
+                    <input type="text" id="youtubeUrl" class="file-input" placeholder="Paste YouTube URL here">
                     <input type="text" id="songTitle" class="file-input" placeholder="Song Title">
                     <input type="text" id="songArtist" class="file-input" placeholder="Artist">
                     <button class="btn btn-secondary" id="addSongBtn">Add Song</button>
+                    <div id="youtubePreview" class="youtube-preview"></div>
+                    <div id="urlError" class="error-message"></div>
                 </div>
             </div>
             
@@ -596,18 +623,42 @@
             activeNotes: [],
             gameActive: false,
             gameStartTime: 0,
-            gameDuration: 30000, // 30 seconds game duration
+            gameDuration: 180000, // 3 minutes in milliseconds
             animationId: null,
-            backgroundMusic: null,
+            youtubePlayer: null,
             volume: 0.5
         };
 
-        // Default songs
+        // Default songs with YouTube IDs
         const defaultSongs = [
-            { id: 1, title: 'Electric Dreams', artist: 'Neon Pulse', bpm: 120 },
-            { id: 2, title: 'Midnight Run', artist: 'Cyber Waves', bpm: 140 },
-            { id: 3, title: 'Pixel Paradise', artist: 'Retro Beats', bpm: 110 },
-            { id: 4, title: 'Neon Lights', artist: 'Synth Masters', bpm: 130 }
+            { 
+                id: 1, 
+                title: 'Electronic Rock', 
+                artist: 'Bensound', 
+                bpm: 120,
+                youtubeId: '4XPw7pXq8cU'
+            },
+            { 
+                id: 2, 
+                title: 'Happy Rock', 
+                artist: 'Bensound', 
+                bpm: 140,
+                youtubeId: '6S2GFFZ_7uY'
+            },
+            { 
+                id: 3, 
+                title: 'Jazzy Frenchy', 
+                artist: 'Bensound', 
+                bpm: 110,
+                youtubeId: '5XAGY3_8q5o'
+            },
+            { 
+                id: 4, 
+                title: 'Retro Dream', 
+                artist: 'Wavecont', 
+                bpm: 130,
+                youtubeId: '5gLBPKb7t_c'
+            }
         ];
 
         // DOM elements
@@ -631,7 +682,7 @@
         const perfectHits = document.getElementById('perfectHits');
         const accuracy = document.getElementById('accuracy');
         const finalGrade = document.getElementById('finalGrade');
-        const songFile = document.getElementById('songFile');
+        const youtubeUrl = document.getElementById('youtubeUrl');
         const songTitle = document.getElementById('songTitle');
         const songArtist = document.getElementById('songArtist');
         const addSongBtn = document.getElementById('addSongBtn');
@@ -641,6 +692,8 @@
         const hitLineD = document.getElementById('hitLineD');
         const hitLineF = document.getElementById('hitLineF');
         const volumeSlider = document.getElementById('volumeSlider');
+        const youtubePreview = document.getElementById('youtubePreview');
+        const urlError = document.getElementById('urlError');
 
         // Audio context for sound effects
         let audioContext;
@@ -652,6 +705,15 @@
             loadSongs();
             setupEventListeners();
             initAudio();
+            loadYouTubeAPI();
+        }
+
+        // Load YouTube IFrame API
+        function loadYouTubeAPI() {
+            const tag = document.createElement('script');
+            tag.src = "https://www.youtube.com/iframe_api";
+            const firstScriptTag = document.getElementsByTagName('script')[0];
+            firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
         }
 
         // Initialize audio context and sounds
@@ -711,6 +773,13 @@
             }
         }
 
+        // Extract YouTube ID from URL
+        function getYouTubeId(url) {
+            const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
+            const match = url.match(regExp);
+            return (match && match[7].length === 11) ? match[7] : false;
+        }
+
         // Load songs into the song list
         function loadSongs() {
             songList.innerHTML = '';
@@ -749,6 +818,17 @@
             });
             
             document.querySelector(`.song-item[data-id="${song.id}"]`).classList.add('active');
+            
+            // Show YouTube preview if available
+            if (song.youtubeId) {
+                youtubePreview.innerHTML = `
+                    <iframe width="280" height="157" src="https://www.youtube.com/embed/${song.youtubeId}" 
+                    frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                    allowfullscreen></iframe>
+                `;
+            } else {
+                youtubePreview.innerHTML = '';
+            }
         }
 
         // Set up event listeners
@@ -779,13 +859,39 @@
             
             // Volume control
             volumeSlider.addEventListener('input', updateVolume);
+            
+            // YouTube URL input
+            youtubeUrl.addEventListener('input', validateYouTubeUrl);
+        }
+
+        // Validate YouTube URL and show preview
+        function validateYouTubeUrl() {
+            const url = youtubeUrl.value.trim();
+            if (!url) {
+                youtubePreview.innerHTML = '';
+                urlError.textContent = '';
+                return;
+            }
+            
+            const youtubeId = getYouTubeId(url);
+            if (youtubeId) {
+                youtubePreview.innerHTML = `
+                    <iframe width="280" height="157" src="https://www.youtube.com/embed/${youtubeId}" 
+                    frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                    allowfullscreen></iframe>
+                `;
+                urlError.textContent = '';
+            } else {
+                youtubePreview.innerHTML = '';
+                urlError.textContent = 'Please enter a valid YouTube URL';
+            }
         }
 
         // Update volume
         function updateVolume() {
             gameState.volume = volumeSlider.value / 100;
-            if (gameState.backgroundMusic) {
-                gameState.backgroundMusic.volume = gameState.volume;
+            if (gameState.youtubePlayer) {
+                gameState.youtubePlayer.setVolume(gameState.volume * 100);
             }
         }
 
@@ -826,25 +932,53 @@
             // Generate notes based on song and difficulty
             generateNotes();
             
-            // Start background music (simulated)
-            startBackgroundMusic();
+            // Start YouTube music
+            startYouTubeMusic();
             
             // Start the game loop
             gameState.animationId = requestAnimationFrame(gameLoop);
         }
 
-        // Start background music (simulated in this case)
-        function startBackgroundMusic() {
-            // In a real implementation, you would load and play the actual song
-            // For this demo, we'll simulate background music with a timer
-            console.log(`Now playing: ${gameState.selectedSong.title} by ${gameState.selectedSong.artist}`);
+        // Start YouTube music
+        function startYouTubeMusic() {
+            if (!gameState.selectedSong || !gameState.selectedSong.youtubeId) return;
             
-            // Create a simulated background music element
-            if (!gameState.backgroundMusic) {
-                gameState.backgroundMusic = new Audio();
-                // In a real implementation, you would set the src to the actual song file
-                // For this demo, we'll just create a silent audio element
-                gameState.backgroundMusic.volume = gameState.volume;
+            if (!gameState.youtubePlayer) {
+                // Create YouTube player
+                gameState.youtubePlayer = new YT.Player('youtubePreview', {
+                    height: '0',
+                    width: '0',
+                    videoId: gameState.selectedSong.youtubeId,
+                    playerVars: {
+                        'autoplay': 1,
+                        'controls': 0,
+                        'disablekb': 1,
+                        'fs': 0,
+                        'modestbranding': 1,
+                        'playsinline': 1
+                    },
+                    events: {
+                        'onReady': onPlayerReady,
+                        'onStateChange': onPlayerStateChange
+                    }
+                });
+            } else {
+                // Load new video and play
+                gameState.youtubePlayer.loadVideoById(gameState.selectedSong.youtubeId, 0, 'large');
+                gameState.youtubePlayer.playVideo();
+            }
+        }
+
+        // YouTube player ready event
+        function onPlayerReady(event) {
+            event.target.setVolume(gameState.volume * 100);
+        }
+
+        // YouTube player state change event
+        function onPlayerStateChange(event) {
+            // If video ends, end the game
+            if (event.data === YT.PlayerState.ENDED) {
+                endGame();
             }
         }
 
@@ -908,7 +1042,7 @@
                 note.hit || elapsed > note.time + 200
             );
             
-            // End game if all notes are processed or time is up
+            // End game if all notes are processed or time is up (3 minutes)
             if (allNotesProcessed || elapsed >= gameState.gameDuration) {
                 endGame();
                 return;
@@ -1119,8 +1253,14 @@
             
             if (gameState.gameActive) {
                 gameState.gameStartTime = performance.now() - (performance.now() - gameState.gameStartTime);
+                if (gameState.youtubePlayer) {
+                    gameState.youtubePlayer.playVideo();
+                }
                 gameState.animationId = requestAnimationFrame(gameLoop);
             } else {
+                if (gameState.youtubePlayer) {
+                    gameState.youtubePlayer.pauseVideo();
+                }
                 cancelAnimationFrame(gameState.animationId);
             }
         }
@@ -1133,10 +1273,9 @@
             // Clear any remaining notes
             document.querySelectorAll('.note').forEach(note => note.remove());
             
-            // Stop background music
-            if (gameState.backgroundMusic) {
-                gameState.backgroundMusic.pause();
-                gameState.backgroundMusic.currentTime = 0;
+            // Stop YouTube music
+            if (gameState.youtubePlayer) {
+                gameState.youtubePlayer.stopVideo();
             }
             
             // Calculate accuracy
@@ -1171,10 +1310,9 @@
                 cancelAnimationFrame(gameState.animationId);
             }
             
-            // Stop background music
-            if (gameState.backgroundMusic) {
-                gameState.backgroundMusic.pause();
-                gameState.backgroundMusic.currentTime = 0;
+            // Stop YouTube music
+            if (gameState.youtubePlayer) {
+                gameState.youtubePlayer.stopVideo();
             }
             
             showScreen('menu');
@@ -1189,14 +1327,20 @@
             gameState.currentScreen = screen;
         }
 
-        // Add custom song
+        // Add custom song from YouTube URL
         function addCustomSong() {
-            const file = songFile.files[0];
+            const url = youtubeUrl.value.trim();
             const title = songTitle.value.trim();
             const artist = songArtist.value.trim();
             
-            if (!file || !title || !artist) {
-                alert('Please fill all fields and select a song file.');
+            if (!url || !title || !artist) {
+                alert('Please fill all fields and enter a YouTube URL.');
+                return;
+            }
+            
+            const youtubeId = getYouTubeId(url);
+            if (!youtubeId) {
+                alert('Please enter a valid YouTube URL.');
                 return;
             }
             
@@ -1205,8 +1349,8 @@
                 id: Date.now(), // Use timestamp as ID
                 title: title,
                 artist: artist,
-                bpm: 120, // Default BPM, in a real app you'd analyze the audio
-                file: file
+                bpm: 120, // Default BPM
+                youtubeId: youtubeId
             };
             
             // Save to localStorage
@@ -1219,12 +1363,19 @@
             selectSong(newSong);
             
             // Reset form
-            songFile.value = '';
+            youtubeUrl.value = '';
             songTitle.value = '';
             songArtist.value = '';
+            youtubePreview.innerHTML = '';
             
             alert('Song added successfully!');
         }
+
+        // YouTube IFrame API callback
+        window.onYouTubeIframeAPIReady = function() {
+            // YouTube player is ready
+            console.log('YouTube API ready');
+        };
 
         // Initialize the game when page loads
         window.addEventListener('load', init);
