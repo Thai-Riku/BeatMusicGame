@@ -247,6 +247,17 @@
             box-shadow: 0 0 10px var(--accent);
         }
 
+        .hit-line-effect {
+            position: absolute;
+            bottom: 50px;
+            width: 100%;
+            height: 4px;
+            background: var(--success);
+            box-shadow: 0 0 15px var(--success);
+            opacity: 0;
+            transition: opacity 0.1s;
+        }
+
         .note {
             position: absolute;
             width: 80%;
@@ -256,6 +267,7 @@
             bottom: 0;
             left: 10%;
             animation: fall linear forwards;
+            box-shadow: 0 0 10px var(--primary);
         }
 
         @keyframes fall {
@@ -405,6 +417,31 @@
             100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
         }
 
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .volume-slider {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 5px;
+            background: rgba(55, 65, 81, 0.7);
+            border-radius: 5px;
+            outline: none;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+        }
+
         @media (max-width: 768px) {
             .song-list {
                 grid-template-columns: 1fr;
@@ -443,6 +480,11 @@
                     <button class="difficulty-btn medium" data-difficulty="medium">Medium</button>
                     <button class="difficulty-btn hard" data-difficulty="hard">Hard</button>
                 </div>
+
+                <div class="volume-control">
+                    <span>Volume:</span>
+                    <input type="range" min="0" max="100" value="50" class="volume-slider" id="volumeSlider">
+                </div>
                 
                 <div class="game-controls">
                     <button class="btn btn-secondary" id="backBtn">Back</button>
@@ -470,15 +512,19 @@
                     <div class="track" id="track">
                         <div class="lane" data-key="a">
                             <div class="hit-line"></div>
+                            <div class="hit-line-effect" id="hitLineA"></div>
                         </div>
                         <div class="lane" data-key="s">
                             <div class="hit-line"></div>
+                            <div class="hit-line-effect" id="hitLineS"></div>
                         </div>
                         <div class="lane" data-key="d">
                             <div class="hit-line"></div>
+                            <div class="hit-line-effect" id="hitLineD"></div>
                         </div>
                         <div class="lane" data-key="f">
                             <div class="hit-line"></div>
+                            <div class="hit-line-effect" id="hitLineF"></div>
                         </div>
                     </div>
                     
@@ -551,7 +597,9 @@
             gameActive: false,
             gameStartTime: 0,
             gameDuration: 30000, // 30 seconds game duration
-            animationId: null
+            animationId: null,
+            backgroundMusic: null,
+            volume: 0.5
         };
 
         // Default songs
@@ -588,11 +636,79 @@
         const songArtist = document.getElementById('songArtist');
         const addSongBtn = document.getElementById('addSongBtn');
         const hitEffect = document.getElementById('hitEffect');
+        const hitLineA = document.getElementById('hitLineA');
+        const hitLineS = document.getElementById('hitLineS');
+        const hitLineD = document.getElementById('hitLineD');
+        const hitLineF = document.getElementById('hitLineF');
+        const volumeSlider = document.getElementById('volumeSlider');
+
+        // Audio context for sound effects
+        let audioContext;
+        let hitSound;
+        let missSound;
 
         // Initialize the game
         function init() {
             loadSongs();
             setupEventListeners();
+            initAudio();
+        }
+
+        // Initialize audio context and sounds
+        function initAudio() {
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // Create hit sound (a short beep)
+                hitSound = audioContext.createOscillator();
+                hitSound.type = 'sine';
+                hitSound.frequency.value = 800;
+                
+                const hitGain = audioContext.createGain();
+                hitSound.connect(hitGain);
+                hitGain.connect(audioContext.destination);
+                hitGain.gain.value = 0.1;
+                
+                // Create miss sound (a lower beep)
+                missSound = audioContext.createOscillator();
+                missSound.type = 'sine';
+                missSound.frequency.value = 400;
+                
+                const missGain = audioContext.createGain();
+                missSound.connect(missGain);
+                missGain.connect(audioContext.destination);
+                missGain.gain.value = 0.1;
+                
+            } catch (e) {
+                console.log('Web Audio API is not supported in this browser');
+            }
+        }
+
+        // Play hit sound
+        function playHitSound(type) {
+            if (!audioContext) return;
+            
+            try {
+                const now = audioContext.currentTime;
+                
+                if (type === 'miss') {
+                    // Play miss sound
+                    missSound.frequency.setValueAtTime(400, now);
+                    missSound.start(now);
+                    missSound.stop(now + 0.1);
+                } else {
+                    // Play hit sound with different pitches based on hit quality
+                    let frequency = 800;
+                    if (type === 'good') frequency = 1000;
+                    if (type === 'perfect') frequency = 1200;
+                    
+                    hitSound.frequency.setValueAtTime(frequency, now);
+                    hitSound.start(now);
+                    hitSound.stop(now + 0.1);
+                }
+            } catch (e) {
+                console.log('Error playing sound:', e);
+            }
         }
 
         // Load songs into the song list
@@ -660,11 +776,27 @@
             
             // Custom song addition
             addSongBtn.addEventListener('click', addCustomSong);
+            
+            // Volume control
+            volumeSlider.addEventListener('input', updateVolume);
+        }
+
+        // Update volume
+        function updateVolume() {
+            gameState.volume = volumeSlider.value / 100;
+            if (gameState.backgroundMusic) {
+                gameState.backgroundMusic.volume = gameState.volume;
+            }
         }
 
         // Start the game
         function startGame() {
             if (!gameState.selectedSong) return;
+            
+            // Resume audio context if it's suspended
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
             
             // Reset game state
             gameState.score = 0;
@@ -694,8 +826,26 @@
             // Generate notes based on song and difficulty
             generateNotes();
             
+            // Start background music (simulated)
+            startBackgroundMusic();
+            
             // Start the game loop
             gameState.animationId = requestAnimationFrame(gameLoop);
+        }
+
+        // Start background music (simulated in this case)
+        function startBackgroundMusic() {
+            // In a real implementation, you would load and play the actual song
+            // For this demo, we'll simulate background music with a timer
+            console.log(`Now playing: ${gameState.selectedSong.title} by ${gameState.selectedSong.artist}`);
+            
+            // Create a simulated background music element
+            if (!gameState.backgroundMusic) {
+                gameState.backgroundMusic = new Audio();
+                // In a real implementation, you would set the src to the actual song file
+                // For this demo, we'll just create a silent audio element
+                gameState.backgroundMusic.volume = gameState.volume;
+            }
         }
 
         // Generate notes for the current song
@@ -753,8 +903,13 @@
             // Check for missed notes
             checkMissedNotes(elapsed);
             
-            // Check if game should end
-            if (elapsed >= gameState.gameDuration) {
+            // Check if all notes have been processed (hit or missed)
+            const allNotesProcessed = gameState.notes.every(note => 
+                note.hit || elapsed > note.time + 200
+            );
+            
+            // End game if all notes are processed or time is up
+            if (allNotesProcessed || elapsed >= gameState.gameDuration) {
                 endGame();
                 return;
             }
@@ -795,6 +950,7 @@
                     gameState.totalHits++;
                     comboValue.textContent = '0';
                     showHitEffect('miss');
+                    playHitSound('miss');
                 }
             }
         }
@@ -810,7 +966,7 @@
                 
                 // Check if there's a note to hit
                 const laneIndex = ['a', 's', 'd', 'f'].indexOf(key);
-                hitNote(laneIndex);
+                hitNote(laneIndex, key);
             }
         }
 
@@ -822,7 +978,7 @@
         }
 
         // Hit a note in the specified lane
-        function hitNote(laneIndex) {
+        function hitNote(laneIndex, key) {
             const elapsed = performance.now() - gameState.gameStartTime;
             let hitNote = null;
             let hitType = 'miss';
@@ -897,8 +1053,12 @@
                     gameState.activeNotes.splice(index, 1);
                 }
                 
-                // Show hit effect
+                // Show hit effect and play sound
                 showHitEffect(hitType);
+                playHitSound(hitType);
+                
+                // Show hit line effect
+                showHitLineEffect(key);
             } else {
                 // Miss - reset combo
                 gameState.combo = 0;
@@ -906,6 +1066,7 @@
                 gameState.totalHits++;
                 comboValue.textContent = '0';
                 showHitEffect('miss');
+                playHitSound('miss');
             }
         }
 
@@ -918,6 +1079,24 @@
             setTimeout(() => {
                 hitEffect.style.opacity = '0';
             }, 200);
+        }
+
+        // Show hit line effect
+        function showHitLineEffect(key) {
+            let hitLine;
+            switch(key) {
+                case 'a': hitLine = hitLineA; break;
+                case 's': hitLine = hitLineS; break;
+                case 'd': hitLine = hitLineD; break;
+                case 'f': hitLine = hitLineF; break;
+            }
+            
+            if (hitLine) {
+                hitLine.style.opacity = '1';
+                setTimeout(() => {
+                    hitLine.style.opacity = '0';
+                }, 100);
+            }
         }
 
         // Show combo popup
@@ -954,6 +1133,12 @@
             // Clear any remaining notes
             document.querySelectorAll('.note').forEach(note => note.remove());
             
+            // Stop background music
+            if (gameState.backgroundMusic) {
+                gameState.backgroundMusic.pause();
+                gameState.backgroundMusic.currentTime = 0;
+            }
+            
             // Calculate accuracy
             const accuracyValue = gameState.totalHits > 0 
                 ? Math.round(((gameState.perfectHits + gameState.goodHits + gameState.okHits) / gameState.totalHits) * 100) 
@@ -985,6 +1170,13 @@
             if (gameState.animationId) {
                 cancelAnimationFrame(gameState.animationId);
             }
+            
+            // Stop background music
+            if (gameState.backgroundMusic) {
+                gameState.backgroundMusic.pause();
+                gameState.backgroundMusic.currentTime = 0;
+            }
+            
             showScreen('menu');
         }
 
