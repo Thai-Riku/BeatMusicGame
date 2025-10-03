@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BeatBlitz - Rhythm Game</title>
+    <style>
+        :root {
+            --primary: #7c3aed;
+            --secondary: #10b981;
+            --accent: #f59e0b;
+            --dark: #1f2937;
+            --light: #f8fafc;
+            --danger: #ef4444;
+            --success: #22c55e;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--dark), #111827);
+            color: var(--light);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 20px 0;
+            margin-bottom: 30px;
+            border-bottom: 2px solid var(--primary);
+        }
+
+        h1 {
+            font-size: 3rem;
+            background: linear-gradient(to right, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 0 0 10px rgba(124, 58, 237, 0.3);
+        }
+
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+
+        .menu-screen, .game-screen, .results-screen {
+            background: rgba(30, 41, 59, 0.8);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .menu-screen {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            color: var(--accent);
+            border-bottom: 1px solid var(--accent);
+            padding-bottom: 5px;
+        }
+
+        .song-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .song-item {
+            background: rgba(55, 65, 81, 0.7);
+            border-radius: 10px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .song-item:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary);
+            box-shadow: 0 5px 15px rgba(124, 58, 237, 0.3);
+        }
+
+        .song-item.active {
+            border-color: var(--accent);
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .song-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .song-artist {
+            color: #9ca3af;
+            font-size: 0.9rem;
+        }
+
+        .difficulty-selector {
+            display: flex;
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .difficulty-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(55, 65, 81, 0.7);
+            color: var(--light);
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .difficulty-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .difficulty-btn.active {
+            background: var(--primary);
+        }
+
+        .easy {
+            border-left: 4px solid var(--success);
+        }
+
+        .medium {
+            border-left: 4px solid var(--accent);
+        }
+
+        .hard {
+            border-left: 4px solid var(--danger);
+        }
+
+        .game-controls {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #6d28d9;
+            transform: scale(1.05);
+        }
+
+        .btn-secondary {
+            background: rgba(55, 65, 81, 0.7);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(75, 85, 99, 0.7);
+            transform: scale(1.05);
+        }
+
+        .game-screen {
+            display: none;
+            position: relative;
+        }
+
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .score-display {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent);
+        }
+
+        .combo-display {
+            font-size: 1.2rem;
+            color: var(--success);
+        }
+
+        .game-area {
+            height: 400px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .track {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 80%;
+            display: flex;
+            justify-content: space-around;
+        }
+
+        .lane {
+            width: 22%;
+            height: 100%;
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+        }
+
+        .hit-line {
+            position: absolute;
+            bottom: 50px;
+            width: 100%;
+            height: 4px;
+            background: var(--accent);
+            box-shadow: 0 0 10px var(--accent);
+        }
+
+        .note {
+            position: absolute;
+            width: 80%;
+            height: 20px;
+            background: var(--primary);
+            border-radius: 5px;
+            bottom: 0;
+            left: 10%;
+            animation: fall linear forwards;
+        }
+
+        @keyframes fall {
+            to {
+                transform: translateY(-400px);
+            }
+        }
+
+        .key-indicator {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0;
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .key {
+            width: 50px;
+            height: 50px;
+            border-radius: 8px;
+            background: rgba(55, 65, 81, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            border: 2px solid transparent;
+        }
+
+        .key.active {
+            background: var(--primary);
+            border-color: var(--accent);
+            transform: scale(1.1);
+        }
+
+        .results-screen {
+            display: none;
+            text-align: center;
+        }
+
+        .results-title {
+            font-size: 2rem;
+            margin-bottom: 20px;
+            color: var(--accent);
+        }
+
+        .results-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .stat-box {
+            background: rgba(55, 65, 81, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--accent);
+        }
+
+        .grade {
+            font-size: 4rem;
+            font-weight: bold;
+            margin: 20px 0;
+            color: var(--success);
+        }
+
+        .custom-song-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .file-input {
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(55, 65, 81, 0.7);
+            border-radius: 8px;
+            color: white;
+            width: 100%;
+        }
+
+        .progress-bar {
+            height: 5px;
+            background: rgba(55, 65, 81, 0.7);
+            border-radius: 5px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+
+        .progress {
+            height: 100%;
+            background: var(--primary);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        @media (max-width: 768px) {
+            .song-list {
+                grid-template-columns: 1fr;
+            }
+            
+            .game-controls {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>BeatBlitz</h1>
+            <p>Feel the rhythm, hit the notes, and set new records!</p>
+        </header>
+
+        <div class="game-container">
+            <!-- Main Menu Screen -->
+            <div class="menu-screen" id="menuScreen">
+                <h2 class="section-title">Song Selection</h2>
+                
+                <div class="song-list" id="songList">
+                    <!-- Songs will be populated by JavaScript -->
+                </div>
+                
+                <h2 class="section-title">Difficulty Level</h2>
+                <div class="difficulty-selector">
+                    <button class="difficulty-btn easy active" data-difficulty="easy">Easy</button>
+                    <button class="difficulty-btn medium" data-difficulty="medium">Medium</button>
+                    <button class="difficulty-btn hard" data-difficulty="hard">Hard</button>
+                </div>
+                
+                <div class="game-controls">
+                    <button class="btn btn-secondary" id="backBtn">Back</button>
+                    <button class="btn btn-primary" id="playBtn">Play</button>
+                </div>
+                
+                <div class="custom-song-section">
+                    <h2 class="section-title">Add Your Own Song</h2>
+                    <input type="file" id="songFile" class="file-input" accept="audio/*">
+                    <input type="text" id="songTitle" class="file-input" placeholder="Song Title">
+                    <input type="text" id="songArtist" class="file-input" placeholder="Artist">
+                    <button class="btn btn-secondary" id="addSongBtn">Add Song</button>
+                </div>
+            </div>
+            
+            <!-- Game Screen -->
+            <div class="game-screen" id="gameScreen">
+                <div class="game-header">
+                    <div class="score-display">Score: <span id="scoreValue">0</span></div>
+                    <div class="combo-display">Combo: <span id="comboValue">0</span>x</div>
+                </div>
+                
+                <div class="game-area">
+                    <div class="track" id="track">
+                        <div class="lane" data-key="a">
+                            <div class="hit-line"></div>
+                        </div>
+                        <div class="lane" data-key="s">
+                            <div class="hit-line"></div>
+                        </div>
+                        <div class="lane" data-key="d">
+                            <div class="hit-line"></div>
+                        </div>
+                        <div class="lane" data-key="f">
+                            <div class="hit-line"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="key-indicator">
+                        <div class="key" data-key="a">A</div>
+                        <div class="key" data-key="s">S</div>
+                        <div class="key" data-key="d">D</div>
+                        <div class="key" data-key="f">F</div>
+                    </div>
+                </div>
+                
+                <div class="progress-bar">
+                    <div class="progress" id="songProgress"></div>
+                </div>
+                
+                <div class="game-controls">
+                    <button class="btn btn-secondary" id="pauseBtn">Pause</button>
+                    <button class="btn btn-secondary" id="quitBtn">Quit</button>
+                </div>
+            </div>
+            
+            <!-- Results Screen -->
+            <div class="results-screen" id="resultsScreen">
+                <h2 class="results-title">Game Results</h2>
+                <div class="grade" id="finalGrade">A</div>
+                
+                <div class="results-stats">
+                    <div class="stat-box">
+                        <div class="stat-label">Score</div>
+                        <div class="stat-value" id="finalScore">0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Max Combo</div>
+                        <div class="stat-value" id="maxCombo">0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Perfect Hits</div>
+                        <div class="stat-value" id="perfectHits">0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Accuracy</div>
+                        <div class="stat-value" id="accuracy">0%</div>
+                    </div>
+                </div>
+                
+                <div class="game-controls">
+                    <button class="btn btn-secondary" id="retryBtn">Retry</button>
+                    <button class="btn btn-primary" id="menuBtn">Back to Menu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Game state
+        const gameState = {
+            currentScreen: 'menu',
+            selectedSong: null,
+            difficulty: 'easy',
+            score: 0,
+            combo: 0,
+            maxCombo: 0,
+            perfectHits: 0,
+            totalHits: 0,
+            notes: [],
+            activeNotes: [],
+            gameActive: false,
+            audioContext: null,
+            audioSource: null,
+            startTime: 0,
+            songDuration: 0
+        };
+
+        // Default songs
+        const defaultSongs = [
+            { id: 1, title: 'Electric Dreams', artist: 'Neon Pulse', bpm: 120 },
+            { id: 2, title: 'Midnight Run', artist: 'Cyber Waves', bpm: 140 },
+            { id: 3, title: 'Pixel Paradise', artist: 'Retro Beats', bpm: 110 },
+            { id: 4, title: 'Neon Lights', artist: 'Synth Masters', bpm: 130 }
+        ];
+
+        // DOM elements
+        const menuScreen = document.getElementById('menuScreen');
+        const gameScreen = document.getElementById('gameScreen');
+        const resultsScreen = document.getElementById('resultsScreen');
+        const songList = document.getElementById('songList');
+        const difficultyButtons = document.querySelectorAll('.difficulty-btn');
+        const playBtn = document.getElementById('playBtn');
+        const backBtn = document.getElementById('backBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const quitBtn = document.getElementById('quitBtn');
+        const retryBtn = document.getElementById('retryBtn');
+        const menuBtn = document.getElementById('menuBtn');
+        const scoreValue = document.getElementById('scoreValue');
+        const comboValue = document.getElementById('comboValue');
+        const track = document.getElementById('track');
+        const songProgress = document.getElementById('songProgress');
+        const finalScore = document.getElementById('finalScore');
+        const maxCombo = document.getElementById('maxCombo');
+        const perfectHits = document.getElementById('perfectHits');
+        const accuracy = document.getElementById('accuracy');
+        const finalGrade = document.getElementById('finalGrade');
+        const songFile = document.getElementById('songFile');
+        const songTitle = document.getElementById('songTitle');
+        const songArtist = document.getElementById('songArtist');
+        const addSongBtn = document.getElementById('addSongBtn');
+
+        // Initialize the game
+        function init() {
+            loadSongs();
+            setupEventListeners();
+        }
+
+        // Load songs into the song list
+        function loadSongs() {
+            songList.innerHTML = '';
+            
+            // Get custom songs from localStorage
+            const customSongs = JSON.parse(localStorage.getItem('customSongs')) || [];
+            const allSongs = [...defaultSongs, ...customSongs];
+            
+            allSongs.forEach(song => {
+                const songItem = document.createElement('div');
+                songItem.className = 'song-item';
+                songItem.dataset.id = song.id;
+                songItem.innerHTML = `
+                    <div class="song-title">${song.title}</div>
+                    <div class="song-artist">${song.artist}</div>
+                    <div class="song-bpm">BPM: ${song.bpm}</div>
+                `;
+                
+                songItem.addEventListener('click', () => selectSong(song));
+                songList.appendChild(songItem);
+            });
+            
+            // Select first song by default
+            if (allSongs.length > 0) {
+                selectSong(allSongs[0]);
+            }
+        }
+
+        // Select a song
+        function selectSong(song) {
+            gameState.selectedSong = song;
+            
+            // Update UI
+            document.querySelectorAll('.song-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            document.querySelector(`.song-item[data-id="${song.id}"]`).classList.add('active');
+        }
+
+        // Set up event listeners
+        function setupEventListeners() {
+            // Difficulty selection
+            difficultyButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    difficultyButtons.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    gameState.difficulty = btn.dataset.difficulty;
+                });
+            });
+            
+            // Navigation buttons
+            playBtn.addEventListener('click', startGame);
+            backBtn.addEventListener('click', goToMenu);
+            pauseBtn.addEventListener('click', togglePause);
+            quitBtn.addEventListener('click', endGame);
+            retryBtn.addEventListener('click', startGame);
+            menuBtn.addEventListener('click', goToMenu);
+            
+            // Key events for gameplay
+            document.addEventListener('keydown', handleKeyDown);
+            document.addEventListener('keyup', handleKeyUp);
+            
+            // Custom song addition
+            addSongBtn.addEventListener('click', addCustomSong);
+        }
+
+        // Start the game
+        function startGame() {
+            if (!gameState.selectedSong) return;
+            
+            // Reset game state
+            gameState.score = 0;
+            gameState.combo = 0;
+            gameState.maxCombo = 0;
+            gameState.perfectHits = 0;
+            gameState.totalHits = 0;
+            gameState.notes = [];
+            gameState.activeNotes = [];
+            gameState.gameActive = true;
+            
+            // Update UI
+            scoreValue.textContent = '0';
+            comboValue.textContent = '0';
+            songProgress.style.width = '0%';
+            
+            // Switch to game screen
+            showScreen('game');
+            
+            // Generate notes based on song and difficulty
+            generateNotes();
+            
+            // Start the game loop
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Generate notes for the current song
+        function generateNotes() {
+            // This is a simplified note generation
+            // In a real game, you would parse a chart file or generate based on the audio
+            const bpm = gameState.selectedSong.bpm;
+            const noteInterval = 60000 / bpm; // ms per beat
+            
+            // Generate more notes for higher difficulties
+            let noteCount;
+            switch(gameState.difficulty) {
+                case 'easy':
+                    noteCount = 50;
+                    break;
+                case 'medium':
+                    noteCount = 100;
+                    break;
+                case 'hard':
+                    noteCount = 150;
+                    break;
+            }
+            
+            for (let i = 0; i < noteCount; i++) {
+                const lane = Math.floor(Math.random() * 4);
+                const time = 2000 + i * noteInterval / 2; // Start after 2 seconds
+                
+                gameState.notes.push({
+                    lane: lane,
+                    time: time,
+                    hit: false,
+                    element: null
+                });
+            }
+            
+            // Sort notes by time
+            gameState.notes.sort((a, b) => a.time - b.time);
+        }
+
+        // Game loop
+        function gameLoop(timestamp) {
+            if (!gameState.gameActive) return;
+            
+            // Update progress bar (simulated)
+            if (gameState.notes.length > 0) {
+                const progress = Math.min(100, (timestamp / 30000) * 100); // Simulate 30s song
+                songProgress.style.width = `${progress}%`;
+            }
+            
+            // Create notes that should appear
+            const currentTime = performance.now();
+            gameState.notes.forEach(note => {
+                if (!note.element && currentTime >= note.time - 2000) { // Show note 2 seconds before hit time
+                    createNoteElement(note);
+                }
+            });
+            
+            // Check for missed notes
+            checkMissedNotes(currentTime);
+            
+            // Continue the game loop
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Create a visual note element
+        function createNoteElement(note) {
+            const lane = track.children[note.lane];
+            const noteElement = document.createElement('div');
+            noteElement.className = 'note';
+            noteElement.dataset.noteId = gameState.notes.indexOf(note);
+            
+            // Set animation duration based on when it should hit
+            const currentTime = performance.now();
+            const timeToHit = note.time - currentTime;
+            noteElement.style.animationDuration = `${timeToHit}ms`;
+            
+            lane.appendChild(noteElement);
+            note.element = noteElement;
+            gameState.activeNotes.push(note);
+        }
+
+        // Check for notes that were missed
+        function checkMissedNotes(currentTime) {
+            for (let i = gameState.activeNotes.length - 1; i >= 0; i--) {
+                const note = gameState.activeNotes[i];
+                
+                // If note is past hit time and not hit, it's a miss
+                if (currentTime > note.time + 200 && !note.hit) {
+                    note.hit = true;
+                    note.element.remove();
+                    gameState.activeNotes.splice(i, 1);
+                    gameState.combo = 0;
+                    comboValue.textContent = '0';
+                }
+            }
+        }
+
+        // Handle key press for hitting notes
+        function handleKeyDown(e) {
+            if (!gameState.gameActive) return;
+            
+            const key = e.key.toLowerCase();
+            if (['a', 's', 'd', 'f'].includes(key)) {
+                // Visual feedback
+                document.querySelector(`.key[data-key="${key}"]`).classList.add('active');
+                
+                // Check if there's a note to hit
+                const laneIndex = ['a', 's', 'd', 'f'].indexOf(key);
+                hitNote(laneIndex);
+            }
+        }
+
+        function handleKeyUp(e) {
+            const key = e.key.toLowerCase();
+            if (['a', 's', 'd', 'f'].includes(key)) {
+                document.querySelector(`.key[data-key="${key}"]`).classList.remove('active');
+            }
+        }
+
+        // Hit a note in the specified lane
+        function hitNote(laneIndex) {
+            const currentTime = performance.now();
+            let hitNote = null;
+            
+            // Find the closest note in this lane
+            for (let i = 0; i < gameState.activeNotes.length; i++) {
+                const note = gameState.activeNotes[i];
+                if (note.lane === laneIndex && !note.hit) {
+                    const timeDiff = Math.abs(note.time - currentTime);
+                    
+                    // If within hit window
+                    if (timeDiff < 200) {
+                        hitNote = note;
+                        break;
+                    }
+                }
+            }
+            
+            if (hitNote) {
+                // Calculate score based on timing
+                const timeDiff = Math.abs(hitNote.time - currentTime);
+                let points = 0;
+                
+                if (timeDiff < 50) {
+                    points = 100; // Perfect
+                    gameState.perfectHits++;
+                } else if (timeDiff < 100) {
+                    points = 80; // Good
+                } else if (timeDiff < 200) {
+                    points = 50; // OK
+                }
+                
+                // Apply combo multiplier
+                points *= (1 + gameState.combo * 0.1);
+                
+                // Update game state
+                gameState.score += Math.floor(points);
+                gameState.combo++;
+                gameState.maxCombo = Math.max(gameState.maxCombo, gameState.combo);
+                gameState.totalHits++;
+                
+                // Update UI
+                scoreValue.textContent = gameState.score;
+                comboValue.textContent = gameState.combo;
+                
+                // Mark note as hit and remove
+                hitNote.hit = true;
+                hitNote.element.remove();
+                
+                // Remove from active notes
+                const index = gameState.activeNotes.indexOf(hitNote);
+                if (index > -1) {
+                    gameState.activeNotes.splice(index, 1);
+                }
+                
+                // Check if game should end (all notes processed)
+                if (gameState.notes.every(note => note.hit || performance.now() > note.time + 200)) {
+                    setTimeout(endGame, 1000);
+                }
+            } else {
+                // Miss - reset combo
+                gameState.combo = 0;
+                comboValue.textContent = '0';
+            }
+        }
+
+        // Toggle pause state
+        function togglePause() {
+            gameState.gameActive = !gameState.gameActive;
+            pauseBtn.textContent = gameState.gameActive ? 'Pause' : 'Resume';
+            
+            if (gameState.gameActive) {
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        // End the game and show results
+        function endGame() {
+            gameState.gameActive = false;
+            
+            // Calculate accuracy
+            const accuracyValue = gameState.totalHits > 0 
+                ? Math.round((gameState.perfectHits / gameState.totalHits) * 100) 
+                : 0;
+            
+            // Determine grade
+            let grade;
+            if (accuracyValue >= 95) grade = 'S';
+            else if (accuracyValue >= 90) grade = 'A';
+            else if (accuracyValue >= 80) grade = 'B';
+            else if (accuracyValue >= 70) grade = 'C';
+            else if (accuracyValue >= 60) grade = 'D';
+            else grade = 'F';
+            
+            // Update results screen
+            finalScore.textContent = gameState.score;
+            maxCombo.textContent = gameState.maxCombo;
+            perfectHits.textContent = gameState.perfectHits;
+            accuracy.textContent = `${accuracyValue}%`;
+            finalGrade.textContent = grade;
+            
+            // Show results screen
+            showScreen('results');
+        }
+
+        // Go back to menu
+        function goToMenu() {
+            gameState.gameActive = false;
+            showScreen('menu');
+        }
+
+        // Show specific screen
+        function showScreen(screen) {
+            menuScreen.style.display = screen === 'menu' ? 'flex' : 'none';
+            gameScreen.style.display = screen === 'game' ? 'block' : 'none';
+            resultsScreen.style.display = screen === 'results' ? 'block' : 'none';
+            
+            gameState.currentScreen = screen;
+        }
+
+        // Add custom song
+        function addCustomSong() {
+            const file = songFile.files[0];
+            const title = songTitle.value.trim();
+            const artist = songArtist.value.trim();
+            
+            if (!file || !title || !artist) {
+                alert('Please fill all fields and select a song file.');
+                return;
+            }
+            
+            // Create a new song object
+            const newSong = {
+                id: Date.now(), // Use timestamp as ID
+                title: title,
+                artist: artist,
+                bpm: 120, // Default BPM, in a real app you'd analyze the audio
+                file: file
+            };
+            
+            // Save to localStorage
+            const customSongs = JSON.parse(localStorage.getItem('customSongs')) || [];
+            customSongs.push(newSong);
+            localStorage.setItem('customSongs', JSON.stringify(customSongs));
+            
+            // Reload songs and select the new one
+            loadSongs();
+            selectSong(newSong);
+            
+            // Reset form
+            songFile.value = '';
+            songTitle.value = '';
+            songArtist.value = '';
+            
+            alert('Song added successfully!');
+        }
+
+        // Initialize the game when page loads
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
