@@ -284,6 +284,7 @@
             justify-content: center;
             font-weight: bold;
             border: 2px solid transparent;
+            transition: all 0.1s ease;
         }
 
         .key.active {
@@ -359,6 +360,51 @@
             transition: width 0.3s ease;
         }
 
+        .hit-effect {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .hit-perfect {
+            background: radial-gradient(circle, rgba(34, 197, 94, 0.3) 0%, transparent 70%);
+        }
+
+        .hit-good {
+            background: radial-gradient(circle, rgba(245, 158, 11, 0.3) 0%, transparent 70%);
+        }
+
+        .hit-ok {
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, transparent 70%);
+        }
+
+        .hit-miss {
+            background: radial-gradient(circle, rgba(239, 68, 68, 0.3) 0%, transparent 70%);
+        }
+
+        .combo-popup {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            font-weight: bold;
+            color: var(--success);
+            opacity: 0;
+            pointer-events: none;
+            text-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+            animation: popup 1s forwards;
+        }
+
+        @keyframes popup {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+        }
+
         @media (max-width: 768px) {
             .song-list {
                 grid-template-columns: 1fr;
@@ -420,6 +466,7 @@
                 </div>
                 
                 <div class="game-area">
+                    <div class="hit-effect" id="hitEffect"></div>
                     <div class="track" id="track">
                         <div class="lane" data-key="a">
                             <div class="hit-line"></div>
@@ -495,14 +542,16 @@
             combo: 0,
             maxCombo: 0,
             perfectHits: 0,
+            goodHits: 0,
+            okHits: 0,
+            misses: 0,
             totalHits: 0,
             notes: [],
             activeNotes: [],
             gameActive: false,
-            audioContext: null,
-            audioSource: null,
-            startTime: 0,
-            songDuration: 0
+            gameStartTime: 0,
+            gameDuration: 30000, // 30 seconds game duration
+            animationId: null
         };
 
         // Default songs
@@ -538,6 +587,7 @@
         const songTitle = document.getElementById('songTitle');
         const songArtist = document.getElementById('songArtist');
         const addSongBtn = document.getElementById('addSongBtn');
+        const hitEffect = document.getElementById('hitEffect');
 
         // Initialize the game
         function init() {
@@ -621,15 +671,22 @@
             gameState.combo = 0;
             gameState.maxCombo = 0;
             gameState.perfectHits = 0;
+            gameState.goodHits = 0;
+            gameState.okHits = 0;
+            gameState.misses = 0;
             gameState.totalHits = 0;
             gameState.notes = [];
             gameState.activeNotes = [];
             gameState.gameActive = true;
+            gameState.gameStartTime = performance.now();
             
             // Update UI
             scoreValue.textContent = '0';
             comboValue.textContent = '0';
             songProgress.style.width = '0%';
+            
+            // Clear any existing notes
+            document.querySelectorAll('.note').forEach(note => note.remove());
             
             // Switch to game screen
             showScreen('game');
@@ -638,13 +695,11 @@
             generateNotes();
             
             // Start the game loop
-            requestAnimationFrame(gameLoop);
+            gameState.animationId = requestAnimationFrame(gameLoop);
         }
 
         // Generate notes for the current song
         function generateNotes() {
-            // This is a simplified note generation
-            // In a real game, you would parse a chart file or generate based on the audio
             const bpm = gameState.selectedSong.bpm;
             const noteInterval = 60000 / bpm; // ms per beat
             
@@ -652,13 +707,13 @@
             let noteCount;
             switch(gameState.difficulty) {
                 case 'easy':
-                    noteCount = 50;
+                    noteCount = 30;
                     break;
                 case 'medium':
-                    noteCount = 100;
+                    noteCount = 60;
                     break;
                 case 'hard':
-                    noteCount = 150;
+                    noteCount = 90;
                     break;
             }
             
@@ -682,25 +737,30 @@
         function gameLoop(timestamp) {
             if (!gameState.gameActive) return;
             
-            // Update progress bar (simulated)
-            if (gameState.notes.length > 0) {
-                const progress = Math.min(100, (timestamp / 30000) * 100); // Simulate 30s song
-                songProgress.style.width = `${progress}%`;
-            }
+            const elapsed = timestamp - gameState.gameStartTime;
+            
+            // Update progress bar
+            const progress = Math.min(100, (elapsed / gameState.gameDuration) * 100);
+            songProgress.style.width = `${progress}%`;
             
             // Create notes that should appear
-            const currentTime = performance.now();
             gameState.notes.forEach(note => {
-                if (!note.element && currentTime >= note.time - 2000) { // Show note 2 seconds before hit time
+                if (!note.element && elapsed >= note.time - 2000) { // Show note 2 seconds before hit time
                     createNoteElement(note);
                 }
             });
             
             // Check for missed notes
-            checkMissedNotes(currentTime);
+            checkMissedNotes(elapsed);
+            
+            // Check if game should end
+            if (elapsed >= gameState.gameDuration) {
+                endGame();
+                return;
+            }
             
             // Continue the game loop
-            requestAnimationFrame(gameLoop);
+            gameState.animationId = requestAnimationFrame(gameLoop);
         }
 
         // Create a visual note element
@@ -711,7 +771,7 @@
             noteElement.dataset.noteId = gameState.notes.indexOf(note);
             
             // Set animation duration based on when it should hit
-            const currentTime = performance.now();
+            const currentTime = performance.now() - gameState.gameStartTime;
             const timeToHit = note.time - currentTime;
             noteElement.style.animationDuration = `${timeToHit}ms`;
             
@@ -721,17 +781,20 @@
         }
 
         // Check for notes that were missed
-        function checkMissedNotes(currentTime) {
+        function checkMissedNotes(elapsed) {
             for (let i = gameState.activeNotes.length - 1; i >= 0; i--) {
                 const note = gameState.activeNotes[i];
                 
                 // If note is past hit time and not hit, it's a miss
-                if (currentTime > note.time + 200 && !note.hit) {
+                if (elapsed > note.time + 200 && !note.hit) {
                     note.hit = true;
                     note.element.remove();
                     gameState.activeNotes.splice(i, 1);
                     gameState.combo = 0;
+                    gameState.misses++;
+                    gameState.totalHits++;
                     comboValue.textContent = '0';
+                    showHitEffect('miss');
                 }
             }
         }
@@ -760,18 +823,28 @@
 
         // Hit a note in the specified lane
         function hitNote(laneIndex) {
-            const currentTime = performance.now();
+            const elapsed = performance.now() - gameState.gameStartTime;
             let hitNote = null;
+            let hitType = 'miss';
             
             // Find the closest note in this lane
             for (let i = 0; i < gameState.activeNotes.length; i++) {
                 const note = gameState.activeNotes[i];
                 if (note.lane === laneIndex && !note.hit) {
-                    const timeDiff = Math.abs(note.time - currentTime);
+                    const timeDiff = Math.abs(note.time - elapsed);
                     
                     // If within hit window
                     if (timeDiff < 200) {
                         hitNote = note;
+                        
+                        // Determine hit quality
+                        if (timeDiff < 50) {
+                            hitType = 'perfect';
+                        } else if (timeDiff < 100) {
+                            hitType = 'good';
+                        } else {
+                            hitType = 'ok';
+                        }
                         break;
                     }
                 }
@@ -779,16 +852,21 @@
             
             if (hitNote) {
                 // Calculate score based on timing
-                const timeDiff = Math.abs(hitNote.time - currentTime);
                 let points = 0;
                 
-                if (timeDiff < 50) {
-                    points = 100; // Perfect
-                    gameState.perfectHits++;
-                } else if (timeDiff < 100) {
-                    points = 80; // Good
-                } else if (timeDiff < 200) {
-                    points = 50; // OK
+                switch(hitType) {
+                    case 'perfect':
+                        points = 100;
+                        gameState.perfectHits++;
+                        break;
+                    case 'good':
+                        points = 80;
+                        gameState.goodHits++;
+                        break;
+                    case 'ok':
+                        points = 50;
+                        gameState.okHits++;
+                        break;
                 }
                 
                 // Apply combo multiplier
@@ -804,6 +882,11 @@
                 scoreValue.textContent = gameState.score;
                 comboValue.textContent = gameState.combo;
                 
+                // Show combo popup for high combos
+                if (gameState.combo > 5 && gameState.combo % 5 === 0) {
+                    showComboPopup(gameState.combo);
+                }
+                
                 // Mark note as hit and remove
                 hitNote.hit = true;
                 hitNote.element.remove();
@@ -814,15 +897,40 @@
                     gameState.activeNotes.splice(index, 1);
                 }
                 
-                // Check if game should end (all notes processed)
-                if (gameState.notes.every(note => note.hit || performance.now() > note.time + 200)) {
-                    setTimeout(endGame, 1000);
-                }
+                // Show hit effect
+                showHitEffect(hitType);
             } else {
                 // Miss - reset combo
                 gameState.combo = 0;
+                gameState.misses++;
+                gameState.totalHits++;
                 comboValue.textContent = '0';
+                showHitEffect('miss');
             }
+        }
+
+        // Show visual effect when hitting a note
+        function showHitEffect(type) {
+            hitEffect.className = 'hit-effect';
+            hitEffect.classList.add(`hit-${type}`);
+            hitEffect.style.opacity = '1';
+            
+            setTimeout(() => {
+                hitEffect.style.opacity = '0';
+            }, 200);
+        }
+
+        // Show combo popup
+        function showComboPopup(combo) {
+            const popup = document.createElement('div');
+            popup.className = 'combo-popup';
+            popup.textContent = `${combo} Combo!`;
+            
+            document.querySelector('.game-area').appendChild(popup);
+            
+            setTimeout(() => {
+                popup.remove();
+            }, 1000);
         }
 
         // Toggle pause state
@@ -831,17 +939,24 @@
             pauseBtn.textContent = gameState.gameActive ? 'Pause' : 'Resume';
             
             if (gameState.gameActive) {
-                requestAnimationFrame(gameLoop);
+                gameState.gameStartTime = performance.now() - (performance.now() - gameState.gameStartTime);
+                gameState.animationId = requestAnimationFrame(gameLoop);
+            } else {
+                cancelAnimationFrame(gameState.animationId);
             }
         }
 
         // End the game and show results
         function endGame() {
             gameState.gameActive = false;
+            cancelAnimationFrame(gameState.animationId);
+            
+            // Clear any remaining notes
+            document.querySelectorAll('.note').forEach(note => note.remove());
             
             // Calculate accuracy
             const accuracyValue = gameState.totalHits > 0 
-                ? Math.round((gameState.perfectHits / gameState.totalHits) * 100) 
+                ? Math.round(((gameState.perfectHits + gameState.goodHits + gameState.okHits) / gameState.totalHits) * 100) 
                 : 0;
             
             // Determine grade
@@ -867,6 +982,9 @@
         // Go back to menu
         function goToMenu() {
             gameState.gameActive = false;
+            if (gameState.animationId) {
+                cancelAnimationFrame(gameState.animationId);
+            }
             showScreen('menu');
         }
 
